@@ -1,3 +1,4 @@
+console.log("ENV:", process.env);
 require('dotenv').config();
 const {
   Client,
