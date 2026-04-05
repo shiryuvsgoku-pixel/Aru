@@ -108,4 +108,6 @@ client.once('clientReady', () => {
   console.log(`Bot online como ${client.user.tag}`);
 });
 
-client.login(process.env.TOKEN);
+client.login(process.env.TOKEN)
+  .then(() => console.log("LOGOU COM SUCESSO"))
+  .catch(err => console.error("ERRO AO LOGAR:", err));
