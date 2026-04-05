@@ -1,8 +1,18 @@
-require('dotenv').config();
-const {
-  Client,
-  GatewayIntentBits
-} = require('discord.js');
+const express = require('express');
+require('dotenv').config(); // Carregado no topo
+const { Client, GatewayIntentBits } = require('discord.js');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Servidor Web para o Render não desligar o bot
+app.get('/', (req, res) => {
+  res.send('Bot de RPG Online! 🎲');
+});
+
+app.listen(port, () => {
+  console.log(`Servidor web rodando na porta ${port}`);
+});
 
 const client = new Client({
   intents: [
@@ -12,40 +22,32 @@ const client = new Client({
   ]
 });
 
-// ===== FUNÇÃO DE ROLAGEM =====
+// ===== FUNÇÃO DE ROLAGEM (Sua lógica está perfeita aqui) =====
 function processarRolagem(input) {
   input = input.toLowerCase().trim();
 
-  // ===== DF =====
+  // Regra para DF (Fudge/Fate)
   const dfMatch = input.match(/^(\d+)df([+-]\d+)?$/);
   if (dfMatch) {
     const quantidade = parseInt(dfMatch[1]);
     const modificador = dfMatch[2] ? parseInt(dfMatch[2]) : 0;
-
-    if (quantidade <= 0 || quantidade > 1000) return null;
+    if (quantidade <= 0 || quantidade > 100) return null; // Limite menor para evitar lag
 
     let resultados = [];
     let soma = 0;
-
     for (let i = 0; i < quantidade; i++) {
-      const roll = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+      const roll = Math.floor(Math.random() * 3) - 1;
       soma += roll;
-
       if (roll === 1) resultados.push('+');
       else if (roll === -1) resultados.push('-');
       else resultados.push('0');
     }
-
     const totalFinal = soma + modificador;
-
-    let expressao = `${quantidade}df`;
-    if (modificador > 0) expressao += ` + ${modificador}`;
-    if (modificador < 0) expressao += ` - ${Math.abs(modificador)}`;
-
+    let expressao = `${quantidade}df${modificador !== 0 ? (modificador > 0 ? ' + ' + modificador : ' - ' + Math.abs(modificador)) : ''}`;
     return `\`${totalFinal}\` ⟵ [${resultados.join(', ')}] ${expressao}`;
   }
 
-  // ===== DADOS NORMAIS =====
+  // Regra para Dados Normais (d20, d6, etc)
   const match = input.match(/^(\d+)d(\d+)([+-]\d+)?$/);
   if (!match) return null;
 
@@ -53,35 +55,22 @@ function processarRolagem(input) {
   const faces = parseInt(match[2]);
   const modificador = match[3] ? parseInt(match[3]) : 0;
 
-  if (quantidade <= 0 || faces <= 0) return null;
-  if (quantidade > 1000 || faces > 100000) return null;
+  if (quantidade <= 0 || faces <= 0 || quantidade > 100) return null;
 
   let resultados = [];
-
   for (let i = 0; i < quantidade; i++) {
     resultados.push(Math.floor(Math.random() * faces) + 1);
   }
 
   const somaDados = resultados.reduce((a, b) => a + b, 0);
   const totalFinal = somaDados + modificador;
+  const resultadosFormatados = resultados.map(v => (v === faces || v === 1) ? `**${v}**` : v);
 
-  const resultadosFormatados = resultados.map(valor => {
-    if (valor === faces || valor === 1) {
-      return `**${valor}**`;
-    }
-    return valor;
-  });
-
-  let expressao = `${quantidade}d${faces}`;
-  if (modificador > 0) expressao += ` + ${modificador}`;
-  if (modificador < 0) expressao += ` - ${Math.abs(modificador)}`;
-
-  let numeroPrincipal = totalFinal.toString();
-
-  return `\`${numeroPrincipal}\` ⟵ [${resultadosFormatados.join(', ')}] ${expressao}`;
+  let expressao = `${quantidade}d${faces}${modificador !== 0 ? (modificador > 0 ? ' + ' + modificador : ' - ' + Math.abs(modificador)) : ''}`;
+  return `\`${totalFinal}\` ⟵ [${resultadosFormatados.join(', ')}] ${expressao}`;
 }
 
-// ===== COMANDO a! =====
+// ===== EVENTOS DO DISCORD =====
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
@@ -89,24 +78,22 @@ client.on('messageCreate', async message => {
   if (!message.content.toLowerCase().startsWith(prefix)) return;
 
   const comando = message.content.slice(prefix.length).trim();
-
-  if (!comando) {
-    return message.reply('Use: `a! 1d20`');
-  }
+  if (!comando) return message.reply('Use: `a! 1d20`');
 
   const resposta = processarRolagem(comando);
+  if (!resposta) return message.reply('Formato inválido. Ex: `a! 2d6+3` ou `a! 4df`');
 
-  if (!resposta) {
-    return message.reply('Formato inválido. Ex: `a! 2d6+3` ou `a! 4df`');
+  try {
+    await message.reply(resposta);
+  } catch (err) {
+    console.error("Erro ao responder mensagem:", err);
   }
-
-  await message.reply(resposta);
 });
 
-client.once('clientReady', () => {
-  console.log(`Bot online como ${client.user.tag}`);
+// CORREÇÃO AQUI: 'ready' em vez de 'clientReady'
+client.once('ready', () => {
+  console.log(`✅ Bot online como ${client.user.tag}`);
 });
 
 client.login(process.env.TOKEN)
-  .then(() => console.log("LOGOU COM SUCESSO"))
-  .catch(err => console.error("ERRO AO LOGAR:", err));
+  .catch(err => console.error("❌ ERRO AO LOGAR:", err));
